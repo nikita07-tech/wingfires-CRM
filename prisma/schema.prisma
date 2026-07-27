@@ -1,0 +1,249 @@
+// Wing Fires CRM — standalone database schema (Phase 1)
+// Customers, RFQs, Quotes, Orders, and Invoices get added here in later phases
+// using the same pattern — this keeps things real and working at every step
+// instead of generating unused tables up front.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SALES
+  PROCUREMENT
+  VIEWER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         Role     @default(SALES)
+  createdAt    DateTime @default(now())
+
+  leadsOwned   Lead[]   @relation("LeadOwner")
+  leadsCreated Lead[]   @relation("LeadCreator")
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  RFQ_RECEIVED
+  QUOTE_SENT
+  WON
+  LOST
+  INACTIVE
+}
+
+model Lead {
+  id               String     @id @default(cuid())
+  leadNumber       String     @unique
+  companyName      String
+  contactName      String?
+  email            String?
+  phone            String?
+  address          String?
+  country          String?
+  industry         String?
+  aircraftTypes    String?
+  interestedParts  String?
+  source           String?
+  priority         String     @default("medium")
+  status           LeadStatus @default(NEW)
+  notes            String?
+  sourceRfqId      String?    @unique // set when this lead was auto-imported from a website RFQ, prevents duplicate imports
+  convertedCustomerId String? @unique
+  convertedCustomer   Customer? @relation(fields: [convertedCustomerId], references: [id])
+
+  assignedTo       User?      @relation("LeadOwner", fields: [assignedToId], references: [id])
+  assignedToId     String?
+  createdBy        User?      @relation("LeadCreator", fields: [createdById], references: [id])
+  createdById      String?
+
+  activities       LeadActivity[]
+
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+}
+
+model Customer {
+  id               String   @id @default(cuid())
+  customerNumber   String   @unique
+  companyName      String
+  taxId            String?
+  billingAddress   String?
+  shippingAddress  String?
+  country          String?
+  fleetInfo        String?
+  aircraftModels   String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  sourceLead       Lead?
+  contacts         CustomerContact[]
+  rfqs             Rfq[]
+  quotations       Quotation[]
+}
+
+model CustomerContact {
+  id         String   @id @default(cuid())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  name       String
+  title      String?
+  email      String?
+  phone      String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Vendor {
+  id                 String   @id @default(cuid())
+  companyName        String
+  contactName         String?
+  email               String?
+  phone               String?
+  country             String?
+  faaCertified        Boolean  @default(false)
+  easaCertified       Boolean  @default(false)
+  asaCertified        Boolean  @default(false)
+  responseTimeHours   Float?
+  isPreferred         Boolean  @default(false)
+  rating              Float?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  vendorQuotes        VendorQuote[]
+}
+
+model LeadActivity {
+  id        String   @id @default(cuid())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    String
+  action    String
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+enum RfqStatus {
+  NEW
+  VENDOR_SOURCING
+  AWAITING_VENDOR_QUOTE
+  QUOTE_PREPARATION
+  SENT
+  NEGOTIATION
+  WON
+  LOST
+  CANCELLED
+}
+
+model Rfq {
+  id             String    @id @default(cuid())
+  rfqNumber      String    @unique
+  customer       Customer  @relation(fields: [customerId], references: [id])
+  customerId     String
+  aircraftModel  String?
+  needByDate     DateTime?
+  isAog          Boolean   @default(false)
+  status         RfqStatus @default(NEW)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  items          RfqItem[]
+  vendorQuotes   VendorQuote[]
+  quotations     Quotation[]
+}
+
+model RfqItem {
+  id          String @id @default(cuid())
+  rfq         Rfq    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  rfqId       String
+  partNumber  String
+  description String?
+  quantity    Int    @default(1)
+  condition   String?
+}
+
+enum VendorQuoteStatus {
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+}
+
+model VendorQuote {
+  id            String            @id @default(cuid())
+  rfq           Rfq               @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  rfqId         String
+  vendor        Vendor            @relation(fields: [vendorId], references: [id])
+  vendorId      String
+  price         Float
+  currency      String            @default("USD")
+  leadTime      String?
+  condition     String?
+  certifications String?
+  warranty      String?
+  notes         String?
+  status        VendorQuoteStatus @default(SUBMITTED)
+  createdAt     DateTime          @default(now())
+
+  quotationItems QuotationItem[]
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model Quotation {
+  id               String          @id @default(cuid())
+  quotationNumber  String          @unique
+  rfq              Rfq             @relation(fields: [rfqId], references: [id])
+  rfqId            String
+  customer         Customer        @relation(fields: [customerId], references: [id])
+  customerId       String
+  subtotal         Float           @default(0)
+  tax              Float           @default(0)
+  freight          Float           @default(0)
+  currency         String          @default("USD")
+  paymentTerms     String?
+  validUntil       DateTime?
+  status           QuotationStatus @default(DRAFT)
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  items            QuotationItem[]
+}
+
+model QuotationItem {
+  id            String       @id @default(cuid())
+  quotation     Quotation    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  quotationId   String
+  vendorQuote   VendorQuote? @relation(fields: [vendorQuoteId], references: [id])
+  vendorQuoteId String?
+  description   String
+  quantity      Int          @default(1)
+  unitPrice     Float
+}
+
+// Simple sequence table used to generate LD-00001 style numbers
+model NumberingSequence {
+  key       String @id
+  prefix    String
+  nextValue Int    @default(1)
+  padding   Int    @default(5)
+}
