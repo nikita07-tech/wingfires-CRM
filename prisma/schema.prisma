@@ -230,6 +230,7 @@ model Quotation {
   updatedAt        DateTime        @updatedAt
 
   items            QuotationItem[]
+   salesOrder       SalesOrder?
 }
 
 model QuotationItem {
