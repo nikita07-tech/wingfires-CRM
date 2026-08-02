@@ -17,6 +17,7 @@ const LINKS = [
   { href: "/sales-orders", label: "Sales Orders", icon: "📦" },
   { href: "/purchase-orders", label: "Purchase Orders", icon: "🚚" },
   { href: "/invoices", label: "Invoices", icon: "💳" },
+  { href: "/website", label: "Website", icon: "🌐" },
   { href: "/settings/automation", label: "Automation", icon: "⚙️" },
 ];
 
