@@ -34,6 +34,30 @@ async function main() {
     create: { key: "quotation", prefix: "QUO", nextValue: 1, padding: 5 },
   });
 
+  await prisma.numberingSequence.upsert({
+    where: { key: "sales_order" },
+    update: {},
+    create: { key: "sales_order", prefix: "SO", nextValue: 1, padding: 5 },
+  });
+
+  await prisma.numberingSequence.upsert({
+    where: { key: "purchase_order" },
+    update: {},
+    create: { key: "purchase_order", prefix: "PO", nextValue: 1, padding: 5 },
+  });
+
+  await prisma.numberingSequence.upsert({
+    where: { key: "invoice" },
+    update: {},
+    create: { key: "invoice", prefix: "INV", nextValue: 1, padding: 5 },
+  });
+
+  await prisma.automationSettings.upsert({
+    where: { id: "default" },
+    update: {},
+    create: { id: "default" },
+  });
+
   const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
   if (!email || !password) {

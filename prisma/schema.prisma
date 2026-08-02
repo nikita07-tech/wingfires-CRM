@@ -91,6 +91,8 @@ model Customer {
   contacts         CustomerContact[]
   rfqs             Rfq[]
   quotations       Quotation[]
+  salesOrders      SalesOrder[]
+  invoices         Invoice[]
 }
 
 model CustomerContact {
@@ -123,6 +125,7 @@ model Vendor {
   updatedAt           DateTime @updatedAt
 
   vendorQuotes        VendorQuote[]
+  purchaseOrders      PurchaseOrder[]
 }
 
 model LeadActivity {
@@ -246,4 +249,122 @@ model NumberingSequence {
   prefix    String
   nextValue Int    @default(1)
   padding   Int    @default(5)
+}
+
+enum OrderStatus {
+  PENDING
+  ORDERED
+  IN_TRANSIT
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+model SalesOrder {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  quotation     Quotation   @relation(fields: [quotationId], references: [id])
+  quotationId   String      @unique
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  customerId    String
+  status        OrderStatus @default(PENDING)
+  paymentStatus String      @default("unpaid")
+  trackingNumber String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+  invoices       Invoice[]
+}
+
+model PurchaseOrder {
+  id           String      @id @default(cuid())
+  poNumber     String      @unique
+  salesOrder   SalesOrder  @relation(fields: [salesOrderId], references: [id])
+  salesOrderId String
+  vendor       Vendor      @relation(fields: [vendorId], references: [id])
+  vendorId     String
+  status       OrderStatus @default(PENDING)
+  total        Float       @default(0)
+  currency     String      @default("USD")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  invoiceNumber  String        @unique
+  salesOrder     SalesOrder    @relation(fields: [salesOrderId], references: [id])
+  salesOrderId   String
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  customerId     String
+  subtotal       Float         @default(0)
+  tax            Float         @default(0)
+  freight        Float         @default(0)
+  amountPaid     Float         @default(0)
+  currency       String        @default("USD")
+  paymentTerms   String?
+  dueDate        DateTime?
+  status         InvoiceStatus @default(DRAFT)
+  sentAt         DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  items          InvoiceItem[]
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  description String
+  quantity    Int     @default(1)
+  unitPrice   Float
+}
+
+// Generic audit log for automated/system actions on orders & invoices
+// (Leads already have their own LeadActivity; this covers everything else.)
+model AutomationLog {
+  id         String   @id @default(cuid())
+  entityType String   // 'sales_order' | 'purchase_order' | 'invoice' | 'quotation'
+  entityId   String
+  action     String
+  detail     String?
+  systemGenerated Boolean @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id         String    @id @default(cuid())
+  title      String
+  body       String?
+  entityType String?
+  entityId   String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+// Singleton row (id is always "default") holding configurable automation behavior
+model AutomationSettings {
+  id                      String @id @default("default")
+  defaultTaxRate          Float  @default(0)
+  defaultPaymentTerms     String @default("Net 30")
+  quotationValidityDays   Int    @default(14)
+  invoiceDueDays          Int    @default(30)
+  reminderDaysBeforeExpiry Int   @default(3)
+  companyBankDetails      String?
+  companyContactInfo      String?
+  updatedAt               DateTime @updatedAt
 }
